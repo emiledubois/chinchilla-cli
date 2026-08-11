@@ -25,3 +25,11 @@ ruff==0.4.4
 bandit==1.7.8
 detect-secrets==1.5.0
 pip-audit==2.7.3
+
+# Testing avanzado (ver specs/TEST_PLAN.md)
+hypothesis==6.165.3
+
+# mutmut 3.x rompe con paquetes llamados literalmente "src" (colisión con su
+# propio directorio interno de mutación, ver specs/TEST_PLAN.md). Fijado a la
+# última versión de la serie 2.x, que muta el archivo in-place sin ese bug.
+mutmut==2.4.4

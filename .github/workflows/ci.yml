@@ -52,6 +52,9 @@ jobs:
       - name: Run formal-technique design tests
         run: pytest tests/design -v --maxfail=1
 
+      - name: Run property-based tests (Hypothesis)
+        run: pytest tests/property -v --maxfail=1
+
       - name: Smoke test — CLI is importable and runnable
         run: python -m src.cli --help
 
