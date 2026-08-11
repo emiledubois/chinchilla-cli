@@ -1,0 +1,39 @@
+# Artefactos generados por la CLI — pueden contener información sensible
+# de la organización auditada; nunca se versionan. logs/ mantiene su
+# .gitkeep trackeado (solo se ignora el contenido *.log runtime).
+reports/
+logs/*.log
+*.pdf
+
+# Material fuente del curso (PDFs con derechos de autor de la institución):
+# contexto para diseñar src/certification/, no código del proyecto.
+contexto/
+
+# Environment / secrets
+.env
+*.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Node (promptfoo, si se agrega)
+node_modules/
+
+# Misc build output not part of this project
+*.html
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/

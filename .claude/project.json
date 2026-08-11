@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json.schemastore.org/claude-project.json",
+  "name": "preaudit-cli",
+  "description": "Workspace agéntico para desarrollar preaudit-cli: herramienta de preauditoría de cumplimiento normativo (Ley 21.663 Ciberseguridad, Ley 21.719 Protección de Datos, OWASP Top 10) para organizaciones chilenas.",
+  "context_file": "specs/SPEC.md",
+  "objectives": [
+    "Mantener specs/SPEC.md y specs/TEST_PLAN.md como contexto compartido (<=200 líneas cada uno)",
+    "Entregar preaudit-cli funcional: preaudit run -> cuestionario -> PDF",
+    "Entregar preaudit certify funcional: evidencia (pytest/ruff/bandit) -> decisión -> informe de certificación PDF",
+    "Aplicar mitigaciones OWASP Agentic Top 10 (ASI01-ASI10) en el propio workspace",
+    "Cumplir CI/CD con pruebas, análisis estático y aprobación humana obligatoria antes de merge/deploy"
+  ],
+  "agents": {
+    "architect": {
+      "prompt_file": ".claude/agents/architect.md",
+      "permissions": ["read:specs", "propose:diff"],
+      "can_merge": false
+    },
+    "developer": {
+      "prompt_file": ".claude/agents/developer.md",
+      "permissions": ["read:specs", "write:worktree", "run:docker"],
+      "can_merge": false
+    },
+    "reviewer": {
+      "prompt_file": ".claude/agents/reviewer.md",
+      "permissions": ["read:diff", "run:bandit", "run:semgrep", "run:detect-secrets"],
+      "can_merge": false
+    },
+    "qa": {
+      "prompt_file": ".claude/agents/qa.md",
+      "permissions": ["read:worktree", "run:pytest", "run:docker"],
+      "can_merge": false
+    }
+  },
+  "isolation": {
+    "strategy": "git-worktree-per-agent",
+    "sandbox": "docker-compose.yml",
+    "shared_state": "file-based-only",
+    "notes": "Ningún agente comparte memoria ni credenciales. Comunicación exclusivamente vía specs/SPEC.md, diffs de PR y logs/audit.log."
+  },
+  "human_approval_required_for": [
+    "merge a main",
+    "publicación a PyPI / artefacto",
+    "cambios de alcance en specs/SPEC.md",
+    "nuevas dependencias en requirements.txt"
+  ],
+  "skills": [
+    ".claude/skills/security-scan.md",
+    ".claude/skills/compliance-check.md"
+  ],
+  "legal_scope": {
+    "cybersecurity_law": "Ley 21.663",
+    "cybersecurity_law_effective_date": "2025-03-01 (vigencia gradual; arts. 5, 8, 9 y Título VII desde esta fecha, resto por etapas OIV durante 2025-2026)",
+    "data_protection_law": "Ley 21.719",
+    "data_protection_law_effective_date": "2026-12-01",
+    "technical_reference": "OWASP Top 10 (2021) + OWASP Agentic AI Top 10 (2026)"
+  }
+}
