@@ -1,0 +1,119 @@
+name: Security Scan (OWASP Agentic Top 10)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1" # semanal, lunes 06:00 UTC — deriva de dependencias
+
+permissions:
+  contents: read
+
+jobs:
+  sast:
+    name: bandit + semgrep (SAST)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install scanners
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit semgrep
+
+      # ASI05 / A03-A06: análisis estático de código Python del proyecto.
+      - name: Run bandit
+        run: bandit -r src -ll -f json -o bandit-report.json || true
+
+      - name: Run semgrep (OWASP + security-audit rulesets)
+        run: |
+          semgrep scan --config auto --config p/owasp-top-ten \
+            --json --output semgrep-report.json src || true
+
+      - name: Fail on HIGH/CRITICAL bandit findings
+        run: |
+          python - <<'PY'
+          import json, sys
+          data = json.load(open("bandit-report.json"))
+          high = [r for r in data.get("results", []) if r["issue_severity"] in ("HIGH", "CRITICAL")]
+          if high:
+              for r in high:
+                  print(f"::error file={r['filename']},line={r['line_number']}::{r['issue_text']}")
+              sys.exit(1)
+          print("No HIGH/CRITICAL bandit findings.")
+          PY
+
+      - name: Upload SAST reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sast-reports
+          path: |
+            bandit-report.json
+            semgrep-report.json
+
+  secrets-scan:
+    name: detect-secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install detect-secrets
+        run: pip install detect-secrets
+
+      # ASI04 / Supply Chain & credential leakage.
+      - name: Scan for secrets
+        run: |
+          detect-secrets scan --baseline .secrets.baseline || \
+          (echo "::error::Se detectaron posibles secretos nuevos no incluidos en .secrets.baseline" && exit 1)
+
+  dependency-audit:
+    name: pip-audit (ASI04 Supply Chain)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Audit dependencies
+        run: pip-audit -r requirements.txt --strict
+
+  agentic-prompt-scan:
+    name: promptfoo (ASI01 Goal Hijack / prompt injection)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install promptfoo
+        run: npm install -g promptfoo
+
+      - name: Evaluate agent prompts for injection resistance
+        run: |
+          if [ -f promptfooconfig.yaml ]; then
+            promptfoo eval -c promptfooconfig.yaml --no-progress-bar
+          else
+            echo "Sin promptfooconfig.yaml aún: paso reservado para cuando se agreguen evals de prompts (.claude/agents/*.md)."
+          fi

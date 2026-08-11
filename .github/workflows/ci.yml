@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# ASI08 (Cascading Failures): timeout explícito en cada job para evitar
+# que un runner colgado bloquee el pipeline indefinidamente.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: pytest (unit + e2e)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        python-version: ["3.11"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Lint (ruff)
+        run: |
+          pip install ruff
+          ruff check src tests
+
+      - name: Run unit tests
+        run: pytest tests/unit -v --maxfail=1
+
+      - name: Run e2e tests
+        run: pytest tests/e2e -v --maxfail=1
+
+      - name: Run formal-technique design tests
+        run: pytest tests/design -v --maxfail=1
+
+      - name: Smoke test — CLI is importable and runnable
+        run: python -m src.cli --help
+
+      # Aseguramiento continuo (contexto/data 3.4.1): cada corrida de CI
+      # ejecuta el ciclo completo de certificación (evidencia -> decisión ->
+      # informe). Si la decisión es "Denegar", el comando retorna exit 1 y
+      # el job falla — no hay autoaprobación (ASI09).
+      - name: Ciclo de certificación de calidad y seguridad (preaudit certify)
+        run: python -m src.cli certify --organization "CI run ${{ github.sha }}"
+
+      - name: Upload certification report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: certification-report
+          path: reports/certification/
+          retention-days: 30
+
+  build-artifact:
+    name: Build distributable (manual approval to publish)
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment:
+      name: pypi-publish # requiere reviewers configurados en GitHub Environments
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build package
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: preaudit-cli-dist
+          path: dist/
+          retention-days: 14
+
+      # Nota (ASI09 - Human Trust): la publicación real a PyPI se hace en un
+      # job/workflow separado disparado manualmente (workflow_dispatch) tras
+      # aprobación humana explícita del "environment" pypi-publish. No se
+      # publica automáticamente desde este job.
