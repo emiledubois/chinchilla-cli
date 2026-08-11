@@ -1,0 +1,27 @@
+# Dependencias de runtime de preaudit-cli.
+#
+# ASI04 / Supply Chain: versiones fijadas explícitamente. Para verificación
+# de integridad completa en CI, generar hashes con:
+#   pip install pip-tools
+#   pip-compile --generate-hashes --output-file=requirements.lock.txt requirements.in
+# y usar `pip install --require-hashes -r requirements.lock.txt` en el
+# pipeline de despliegue. Este archivo se mantiene sin hashes para
+# facilitar el desarrollo local multiplataforma.
+
+# click==8.1.7 y pytest==8.2.0 tenían CVEs conocidos (PYSEC-2026-2132,
+# PYSEC-2026-1845) detectados por `pip-audit` durante `preaudit certify`;
+# fijados a la primera versión con fix disponible (ver logs/audit.log del
+# ciclo de certificación que los detectó).
+click==8.3.3
+rich==13.7.1
+pydantic==2.7.1
+reportlab==4.2.0
+
+# Testing
+pytest==9.0.3
+
+# Calidad y seguridad (usadas también en pre-commit / CI)
+ruff==0.4.4
+bandit==1.7.8
+detect-secrets==1.5.0
+pip-audit==2.7.3

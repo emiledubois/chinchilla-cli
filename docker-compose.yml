@@ -1,0 +1,47 @@
+# Entorno aislado para correr la CLI y las pruebas (Python 3.11).
+#
+# ASI05 (Unexpected Code Execution): toda ejecución de código —tanto la
+# CLI para el usuario final como el trabajo de los agentes que la
+# desarrollan— ocurre dentro de estos contenedores, nunca directamente
+# sobre el host.
+
+services:
+  preaudit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: preaudit-cli:local
+    container_name: preaudit-cli
+    stdin_open: true # necesario para el cuestionario interactivo (rich/click)
+    tty: true
+    volumes:
+      - ./reports:/app/reports
+      - ./logs:/app/logs
+    # Sin puertos expuestos ni acceso a red saliente requerido (A05 OWASP:
+    # sin configuración/superficie innecesaria).
+    network_mode: "none"
+    entrypoint: ["python", "-m", "src.cli"]
+    command: ["run"]
+
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: preaudit-cli:local
+    container_name: preaudit-cli-test
+    volumes:
+      - .:/app
+    entrypoint: ["python", "-m", "pytest"]
+    command: ["tests/unit", "tests/e2e", "tests/design", "-v"]
+
+  # Plantilla de aislamiento por agente (architect/developer/reviewer/qa):
+  # cada agente corre en su PROPIO worktree (`git worktree add ../wt-<agente> <rama>`)
+  # montado en un contenedor independiente, sin compartir volúmenes ni red
+  # entre agentes (ASI03 Identity Abuse / ASI07 Inter-Agent Comm). Ejemplo:
+  #
+  # agent-developer:
+  #   build: { context: ., dockerfile: Dockerfile }
+  #   volumes:
+  #     - ../wt-developer:/app
+  #   network_mode: "none"
+  #   entrypoint: ["python", "-m", "pytest"]
