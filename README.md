@@ -82,6 +82,29 @@ Casos de prueba diseñados con técnicas formales (partición de
 equivalencia, valores límite, tabla de decisión) viven en
 `src/certification/test_cases.py`, ejecutados en `tests/design/`.
 
+## Remediación agéntica supervisada (`preaudit remediate`)
+
+```bash
+python -m src.cli remediate
+```
+
+Recolecta la misma evidencia que `certify` y propone fixes **solo** para
+dos categorías, deliberadamente acotadas (ver `specs/THREAT_MODEL.md`,
+sección "Elevation of Privilege"):
+
+1. No conformidades **menores** de `ruff` → preview vía `ruff check --diff`.
+2. Vulnerabilidades de `pip-audit` con versión de arreglo conocida →
+   diff de la línea correspondiente en `requirements.txt`.
+
+El agente **nunca genera código libremente** — solo invoca herramientas
+deterministas ya auditadas por el propio pipeline. Cada propuesta se
+muestra como diff y **requiere aprobación explícita** (`y`/`N`, sin valor
+por defecto afirmativo) antes de tocar disco; no existe una bandera de
+"aplicar todo sin preguntar". Cada cambio aplicado queda registrado en
+`logs/audit.log`. Los guardrails de alcance (`src/remediation/guardrails.py`)
+se validan tanto al proponer como al aplicar, y están cubiertos por
+`tests/unit/test_remediation_guardrails.py` y `tests/unit/test_remediation.py`.
+
 ## Ejecutar con Docker
 
 ```bash
@@ -94,19 +117,40 @@ saliente (`network_mode: "none"`).
 ## Pruebas
 
 ```bash
-pytest tests/unit tests/e2e tests/design -v
+pytest tests/unit tests/e2e tests/design tests/property -v
 # o vía Docker:
 docker-compose run --rm test
 ```
 
-- `tests/unit/test_models.py` — cálculo de puntaje, validación Pydantic,
-  sanitización de inputs.
+- `tests/unit/` — cálculo de puntaje, validación Pydantic, sanitización
+  de inputs, guardrails y ciclo de remediación.
 - `tests/e2e/test_cli.py` — corrida completa simulada (`CliRunner`) que
   genera un PDF real y valida sus permisos.
 - `tests/design/test_technique_based_cases.py` — casos de prueba
   diseñados con técnicas formales (valores límite, partición de
   equivalencia, tabla de decisión), documentados en
   `src/certification/test_cases.py`.
+- `tests/property/` — pruebas basadas en propiedades (Hypothesis):
+  generan cientos de entradas aleatorias por invariante (puntaje siempre
+  en [0,100], sanitización idempotente y sin caracteres de control,
+  monotonicidad del puntaje, tabla de decisión de certificación
+  verificada exhaustivamente) en vez de solo casos de ejemplo fijos.
+
+### Mutation testing (calidad de la suite, no del producto)
+
+```bash
+mutmut run   # usa la config de setup.cfg
+mutmut results
+```
+
+Mide si los tests *realmente* detectan bugs: introduce mutaciones
+sintéticas en `src/models/assessment.py`, `src/utils/security.py` y
+`src/certification/models.py` y verifica que la suite falle para cada
+una. Corre semanalmente en CI (`security-scan.yml`, job
+`mutation-testing`), no en cada push, por su costo (cada mutante
+re-ejecuta la suite completa). Fijado a `mutmut==2.4.4`: la serie 3.x
+tiene un bug conocido con paquetes llamados literalmente `src` (ver
+`specs/TEST_PLAN.md`).
 
 ## Generar el PDF manualmente (sin cuestionario interactivo)
 
@@ -165,10 +209,13 @@ src/                     código fuente de la CLI
   models/                modelos Pydantic + cálculo de puntaje (preaudit run)
   report/                generación del PDF de preauditoría (ReportLab)
   certification/         plan de pruebas, evidencia, decisión e informe (preaudit certify)
+  remediation/           propuesta y aplicación supervisada de fixes (preaudit remediate)
   utils/security.py      sanitización, permisos, log de auditoría (compartido)
-tests/                   unit + e2e + design (técnicas formales)
+tests/                   unit + e2e + design + property (Hypothesis)
 specs/SPEC.md            contexto único compartido entre agentes
 specs/TEST_PLAN.md       plan de pruebas narrativo (preaudit certify)
+specs/THREAT_MODEL.md    modelo de amenazas STRIDE
+setup.cfg                configuración de mutmut
 scripts/audit-log.sh     script de trazabilidad
 ```
 

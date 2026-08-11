@@ -6,7 +6,8 @@
   "objectives": [
     "Mantener specs/SPEC.md y specs/TEST_PLAN.md como contexto compartido (<=200 líneas cada uno)",
     "Entregar preaudit-cli funcional: preaudit run -> cuestionario -> PDF",
-    "Entregar preaudit certify funcional: evidencia (pytest/ruff/bandit) -> decisión -> informe de certificación PDF",
+    "Entregar preaudit certify funcional: evidencia (pytest/ruff/bandit/pip-audit) -> decisión -> informe de certificación PDF",
+    "Entregar preaudit remediate funcional: propuesta de fixes deterministas con aprobación humana obligatoria",
     "Aplicar mitigaciones OWASP Agentic Top 10 (ASI01-ASI10) en el propio workspace",
     "Cumplir CI/CD con pruebas, análisis estático y aprobación humana obligatoria antes de merge/deploy"
   ],

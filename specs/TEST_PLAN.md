@@ -64,6 +64,61 @@ Pirámide de pruebas:
 - **Filosofía Fail Fast**: CI (`ci.yml`) corta en el primer fallo
   (`--maxfail=1`) en cada etapa.
 
+### 2.1 Pruebas basadas en propiedades (Hypothesis)
+
+`tests/property/` complementa los casos de ejemplo de `tests/unit` y
+`tests/design` generando cientos de entradas aleatorias por invariante en
+vez de fijar valores a mano. Invariantes verificadas:
+
+- **Puntaje**: siempre en [0,100]; determinístico; "Sí" en todas las
+  respuestas ⇒ 100%; "No" en todas ⇒ 0%; "No aplica" nunca cambia el
+  total; mejorar cualquier respuesta a "Sí" nunca disminuye el puntaje
+  (invariante matemática: (P+w)/(M+w) ≥ P/M cuando P≤M, w>0).
+- **Sanitización**: ningún carácter de categoría Unicode "Cc" sobrevive;
+  longitud siempre acotada; idempotente; `safe_filename` solo usa el
+  allow-list `[A-Za-z0-9_.-]` (lo que garantiza ausencia de separadores
+  de ruta, sin importar el input).
+- **Decisión de certificación**: la tabla de decisión completa
+  (`decide_certification`) verificada contra una implementación de
+  referencia independiente, sobre combinaciones aleatorias de hallazgos;
+  determinística; independiente del orden de la lista.
+
+### 2.2 Mutation testing (calidad de la suite, no del producto)
+
+Mide si la suite *realmente* detecta bugs, no solo si pasa. Config en
+`setup.cfg`, fijado a `mutmut==2.4.4` (la serie 3.x falla con paquetes
+llamados literalmente `src` — colisiona con su propio directorio interno
+de mutación; documentado como decisión de ingeniería, no un supuesto).
+Alcance: `src/models/assessment.py`, `src/utils/security.py`,
+`src/certification/models.py` (lógica pura; se excluye CLI/IO/PDF por
+costo — cada mutante re-ejecuta la suite completa). Corre semanalmente
+en CI (`security-scan.yml`, job `mutation-testing`), no en cada push.
+
+**Baseline real** (última corrida completa, `mutmut run` con
+`tests/unit`+`tests/design`+`tests/property`):
+
+| Archivo | Mutantes | Matados | Sobrevivientes | Score |
+|---|---:|---:|---:|---:|
+| `src/models/assessment.py` | 112 | 73 | 39 | 65.2% |
+| `src/utils/security.py` | 50 | 21 | 29 | 42.0% |
+| `src/certification/models.py` | 118 | 19 | 99 | 16.1% |
+| **Total** | **280** | **113** | **167** | **40.4%** |
+
+Lectura honesta, no maquillada: `certification/models.py` es el punto más
+débil con diferencia. La mayoría de sus mutantes sobrevivientes son
+mutaciones de valores de enums (`Severity`, `FindingType`) y de los
+`@property` de `CertificationReport` (`major_nonconformities`,
+`conformities`, etc.) — ninguno de los tests actuales asigna el
+`CertificationReport` completo con una mezcla de tipos de hallazgo y
+verifica esas properties directamente; `tests/property/test_certification_decision_properties.py`
+cubre `decide_certification()` a fondo, pero no las properties del
+modelo `CertificationReport` en sí. **Backlog identificado, no
+resuelto en este ciclo**: agregar pruebas de propiedad sobre
+`CertificationReport.major_nonconformities`/`conformities`/etc.
+subiría el score real de este archivo. Se documenta en vez de
+ocultarse porque el propósito de esta métrica es guiar dónde invertir
+esfuerzo de testing a continuación, no maximizar un número.
+
 ## 3. Recursos y roles
 
 | Rol | Responsabilidad en el plan de pruebas |
@@ -75,7 +130,7 @@ Pirámide de pruebas:
 
 ## 4. Criterios de aceptación
 
-- 0 pruebas fallidas en `tests/unit`, `tests/e2e` y `tests/design`.
+- 0 pruebas fallidas en `tests/unit`, `tests/e2e`, `tests/design` y `tests/property`.
 - 0 hallazgos bandit de severidad HIGH o CRITICAL.
 - 0 violaciones ruff sin resolver (o justificadas con `noqa` documentado).
 - 0 vulnerabilidades conocidas en dependencias (`pip-audit`) sin mitigar.
@@ -138,3 +193,22 @@ alcance actual es exclusivamente el código fuente de este proyecto.
   `click==8.3.3` y `pytest==9.0.3` en `requirements.txt`. Este es un
   ejemplo real (no hipotético) de por qué el criterio de aceptación §4
   incluye `pip-audit` como paso obligatorio, no opcional.
+- 2026-08: una prueba de propiedad (`test_sanitize_input_strips_all_control_characters`,
+  Hypothesis) encontró que `sanitize_input` no eliminaba el bloque de
+  controles Unicode C1 (`\x80`-`\x9f`), solo el bloque ASCII C0 — el
+  regex original cubría `[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]` pero omitía
+  C1. Caso mínimo reproducido por Hypothesis: `"\x80"`. Corregido
+  reemplazando el regex por un filtro sobre la categoría Unicode "Cc"
+  (cubre C0 y C1 por definición). Ningún test de ejemplo escrito a mano
+  había cubierto este caso.
+- 2026-08: mutation testing (`mutmut`) encontró que
+  `Assessment.compute_scores` sobrevivía a la mutación de
+  `points_by_module[module] += question.weight * 0.5` a `=` (asignación
+  en vez de acumulación) porque ningún caso de prueba respondía dos
+  preguntas `PARCIAL` en el mismo módulo. Corregido agregando
+  `test_compute_scores_accumulates_multiple_answers_in_same_module` en
+  `tests/unit/test_models.py`.
+- 2026-08: primer baseline completo de mutation testing: 113/280
+  (40.4%) — ver desglose por archivo arriba. `certification/models.py`
+  quedó identificado como el punto más débil (16.1%), documentado como
+  backlog en vez de inflado artificialmente.

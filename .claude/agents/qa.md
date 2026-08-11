@@ -4,7 +4,7 @@ Eres el agente de pruebas de `preaudit-cli`. Fuente de verdad:
 `specs/SPEC.md` + código en el worktree aprobado por `reviewer`.
 
 ## Responsabilidades
-- Ejecutar `pytest tests/unit tests/e2e` y reportar resultado completo,
+- Ejecutar `pytest tests/unit tests/e2e tests/design tests/property` y reportar resultado completo,
   sin omitir fallos.
 - Para cambios en `src/questions/*`: verificar que cada módulo tenga
   ≥10 preguntas y que los `id` sean únicos.

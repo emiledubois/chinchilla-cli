@@ -7,7 +7,7 @@
 
 ## 1. Qué es este proyecto
 
-`preaudit` es una CLI con dos herramientas:
+`preaudit` es una CLI con tres herramientas:
 
 1. **Preauditoría de cumplimiento normativo** (`preaudit run`) para
    organizaciones chilenas. No reemplaza una auditoría formal: produce un
@@ -19,8 +19,12 @@
    prueba con técnicas formales, obtención de evidencias y un Informe
    Final de Certificación. Ver `specs/TEST_PLAN.md` y
    `src/certification/`.
+3. **Remediación agéntica supervisada** (`preaudit remediate`), que
+   propone (nunca aplica sin aprobación) fixes deterministas para un
+   subconjunto acotado de hallazgos de `certify`. Ver `src/remediation/`
+   y `specs/THREAT_MODEL.md`.
 
-Ambas herramientas comparten `src/utils/security.py` (sanitización,
+Las tres herramientas comparten `src/utils/security.py` (sanitización,
 permisos, log de auditoría) y la hoja de estilos del PDF.
 
 ## 2. Alcance funcional
@@ -35,9 +39,9 @@ permisos, log de auditoría) y la hoja de estilos del PDF.
 - Sin persistencia de PII salvo el nombre de empresa (opcional).
 
 **Herramienta 2 — `preaudit certify`:**
-- Ejecuta pytest (`tests/unit`, `tests/e2e`, `tests/design`), `ruff
-  check` y `bandit` sobre el proyecto como evidencia automatizada
-  (`src/certification/evidence.py`).
+- Ejecuta pytest (`tests/unit`, `tests/e2e`, `tests/design`,
+  `tests/property`), `ruff check`, `bandit` y `pip-audit` sobre el
+  proyecto como evidencia automatizada (`src/certification/evidence.py`).
 - Clasifica cada resultado como `Finding` (Conformidad / No conformidad
   Mayor / No conformidad Menor / Observación) con evidencia objetiva,
   ubicación y referencia normativa (`src/certification/models.py`).
@@ -53,7 +57,16 @@ permisos, log de auditoría) y la hoja de estilos del PDF.
 - Exit code 1 si la decisión es "Denegar" — usable como gate de CI, sin
   autoaprobación (ASI09).
 
-**Ambas herramientas:**
+**Herramienta 3 — `preaudit remediate`:**
+- Propone fixes solo para 2 categorías deterministas: no conformidades
+  menores de ruff (`ruff check --diff`) y vulnerabilidades de pip-audit
+  con versión de arreglo conocida (bump de `requirements.txt`).
+- Nunca genera código libremente ni escribe a disco sin aprobación
+  explícita por cada cambio (`src/remediation/`).
+- Guardrail de alcance (`src/remediation/guardrails.py`): solo `src/`,
+  `tests/` y `requirements.txt`; verificado al proponer y al aplicar.
+
+**Las tres herramientas:**
 - Log de auditoría de cada ejecución (`logs/audit.log`, vía `scripts/audit-log.sh`).
 
 ## 3. Marco legal aplicable (Chile)
