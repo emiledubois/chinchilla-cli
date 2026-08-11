@@ -13,8 +13,10 @@ import click
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
+from rich.syntax import Syntax
 from rich.table import Table
 
+from src.certification.evidence import collect_all_evidence
 from src.certification.report import generate_certification_report
 from src.certification.runner import run_certification
 from src.models.assessment import (
@@ -26,6 +28,8 @@ from src.models.assessment import (
     QuestionModule,
 )
 from src.questions import QUESTIONS_BY_MODULE
+from src.remediation.applier import RemediationScopeError, apply_fix
+from src.remediation.proposer import propose_fixes
 from src.report.generator import generate_report
 from src.utils.security import sanitize_input
 
@@ -236,6 +240,61 @@ def certify(output_dir: Path, organization: str, project_root: Path) -> None:
 
     if report.decision.value == "Denegar":
         raise SystemExit(1)
+
+
+@preaudit.command()
+@click.option(
+    "--project-root",
+    type=click.Path(path_type=Path, exists=True, file_okay=False),
+    default=Path("."),
+    show_default=True,
+    help="Raíz del proyecto sobre el que proponer remediaciones.",
+)
+def remediate(project_root: Path) -> None:
+    """Propone fixes deterministas (ruff/dependencias) y los aplica solo con aprobación explícita."""
+    console.print(
+        Panel.fit(
+            "[bold]preaudit remediate[/bold]\n"
+            "Remediación agéntica supervisada: SOLO invoca herramientas "
+            "deterministas ya auditadas (ruff --fix, bump de dependencias "
+            "con fix conocido). Cada cambio se muestra como diff y requiere "
+            "tu aprobación explícita antes de tocar disco — nunca se "
+            "autoaprueba (ver ASI09 en .claude/skills/security-scan.md).",
+            title="Remediación",
+            border_style="blue",
+        )
+    )
+
+    console.print("[dim]Recolectando evidencia (pytest, ruff, bandit, pip-audit)...[/dim]")
+    findings, _failed = collect_all_evidence(project_root)
+    proposals = propose_fixes(findings, project_root)
+
+    if not proposals:
+        console.print("\n[green]No hay fixes automáticos disponibles en este momento.[/green]")
+        return
+
+    applied = 0
+    for proposal in proposals:
+        console.print()
+        console.print(
+            Panel(
+                Syntax(proposal.diff, "diff", theme="ansi_dark", word_wrap=True),
+                title=f"{proposal.tool.value} — {proposal.target_file}",
+                border_style="yellow",
+            )
+        )
+        console.print(proposal.description)
+        if Confirm.ask("¿Aplicar este cambio?", default=False):
+            try:
+                apply_fix(proposal, project_root)
+                applied += 1
+                console.print("[green]Aplicado y registrado en logs/audit.log.[/green]")
+            except RemediationScopeError as exc:
+                console.print(f"[red]Rechazado por guardrail de alcance: {exc}[/red]")
+        else:
+            console.print("[dim]Omitido por el usuario.[/dim]")
+
+    console.print(f"\n[bold]{applied}/{len(proposals)}[/bold] cambio(s) aplicado(s).")
 
 
 if __name__ == "__main__":
