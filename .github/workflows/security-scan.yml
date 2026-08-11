@@ -96,6 +96,33 @@ jobs:
       - name: Audit dependencies
         run: pip-audit -r requirements.txt --strict
 
+  mutation-testing:
+    name: mutmut (calidad de la suite de pruebas)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Solo en la corrida semanal programada: cada mutante re-ejecuta la
+    # suite completa, demasiado lento para bloquear cada push/PR (ver
+    # specs/TEST_PLAN.md, sección de mutation testing).
+    if: github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run mutation testing (config en setup.cfg)
+        run: mutmut run --CI
+
+      - name: Show results
+        if: always()
+        run: mutmut results
+
   agentic-prompt-scan:
     name: promptfoo (ASI01 Goal Hijack / prompt injection)
     runs-on: ubuntu-latest

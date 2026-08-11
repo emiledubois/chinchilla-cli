@@ -50,6 +50,26 @@ def test_compute_scores_excludes_no_aplica_from_denominator() -> None:
     assert assessment.scores["data_protection"] == 0.0  # q3 no cumplido
 
 
+def test_compute_scores_accumulates_multiple_answers_in_same_module() -> None:
+    """Regresión: mutation testing (mutmut) reveló que `points_by_module[module] +=`
+    mutado a `=` sobrevivía porque ningún caso previo respondía dos preguntas del
+    mismo módulo. Con dos preguntas PARCIAL de weight=2, la puntuación debe sumar
+    ambas contribuciones (50%+50%=100%), no descartar la primera."""
+    questions = [
+        Question(id="q1", module=QuestionModule.OWASP, category="Test", weight=2, text="¿Uno?"),
+        Question(id="q2", module=QuestionModule.OWASP, category="Test", weight=2, text="¿Dos?"),
+    ]
+    answers = [
+        Answer(question_id="q1", selected_option=AnswerOption.PARCIAL),
+        Answer(question_id="q2", selected_option=AnswerOption.PARCIAL),
+    ]
+    assessment = Assessment(answers=answers)
+
+    assessment.compute_scores(questions)
+
+    assert assessment.scores["owasp"] == 50.0
+
+
 def test_compute_scores_partial_counts_as_half_weight() -> None:
     questions = [Question(id="q1", module=QuestionModule.OWASP, category="Test", weight=2, text="¿?")]
     answers = [Answer(question_id="q1", selected_option=AnswerOption.PARCIAL)]
