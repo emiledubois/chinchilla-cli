@@ -15,9 +15,6 @@ import subprocess
 import unicodedata
 from pathlib import Path
 
-# Caracteres de control (excepto \n, \t) — se eliminan siempre.
-_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
-
 # Caracteres relevantes para inyección de shell/comandos. Nunca se pasa
 # input de usuario a `shell=True`, pero se eliminan igual como defensa en
 # profundidad para cualquier construcción de nombres de archivo o rutas.
@@ -32,12 +29,18 @@ def sanitize_input(value: str, *, max_length: int = 500) -> str:
 
     No lanza excepciones sobre input "sucio": lo limpia y retorna un string
     seguro para persistir/renderizar. Cadenas vacías tras limpiar retornan "".
+
+    Elimina TODO carácter de la categoría Unicode "Cc" (control), no solo
+    el bloque ASCII C0 (\\x00-\\x1f, \\x7f): una versión anterior usaba un
+    regex que cubría C0 pero omitía el bloque C1 (\\x80-\\x9f, también
+    "Cc"), un gap que detectó `tests/property/test_sanitization_properties.py`
+    con Hypothesis (caso mínimo: "\\x80" sobrevivía sin limpiar).
     """
     if not isinstance(value, str):
         raise TypeError(f"sanitize_input espera str, recibió {type(value).__name__}")
 
     normalized = unicodedata.normalize("NFKC", value)
-    without_control = _CONTROL_CHARS_RE.sub("", normalized)
+    without_control = "".join(char for char in normalized if unicodedata.category(char) != "Cc")
     collapsed = " ".join(without_control.split())
     return collapsed[:max_length].strip()
 
