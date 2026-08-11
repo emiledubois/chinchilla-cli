@@ -34,6 +34,21 @@ _BANDIT_SEVERITY_MAP: dict[str, Severity] = {
 _RUFF_MAJOR_PREFIXES = ("S",)
 
 
+def _relative_to_project(raw_path: str, project_root: Path) -> str:
+    """Normaliza una ruta (absoluta o relativa) a relativa a `project_root`.
+
+    Necesario porque distintas herramientas reportan rutas de forma
+    inconsistente (ruff siempre absoluta; bandit típicamente relativa a
+    como se le invocó). `Finding.location` debe ser SIEMPRE relativa para
+    que `src/remediation/guardrails.py` pueda validarla contra el
+    allow-list de forma consistente entre fuentes.
+    """
+    try:
+        return str(Path(raw_path).resolve().relative_to(project_root.resolve()))
+    except (ValueError, OSError):
+        return raw_path
+
+
 def _run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         cmd,  # noqa: S603 — cmd es una lista fija construida internamente, sin shell ni input de usuario.
@@ -111,7 +126,11 @@ def collect_ruff_findings(project_root: Path, paths: list[str]) -> list[Finding]
     for violation in violations:
         code = violation.get("code") or "?"
         is_major = code.startswith(_RUFF_MAJOR_PREFIXES)
-        location = violation.get("filename", "-")
+        # ruff siempre devuelve rutas absolutas en su JSON, sin importar cómo
+        # se le haya invocado; se normaliza a relativa a project_root para que
+        # Finding.location sea consistente entre herramientas (bandit ya
+        # reporta relativo) y consumible por src/remediation/guardrails.py.
+        location = _relative_to_project(violation.get("filename", "-"), project_root)
         row = (violation.get("location") or {}).get("row")
         if row:
             location = f"{location}:{row}"
@@ -161,6 +180,7 @@ def collect_bandit_findings(project_root: Path, target: str = "src") -> list[Fin
             else FindingType.NO_CONFORMIDAD_MENOR
         )
         cwe_id = (item.get("issue_cwe") or {}).get("id", "-")
+        bandit_file = _relative_to_project(item.get("filename", "-"), project_root)
         findings.append(
             Finding(
                 id=f"bandit-{item.get('test_id', '?')}-{item.get('line_number', '?')}",
@@ -169,7 +189,7 @@ def collect_bandit_findings(project_root: Path, target: str = "src") -> list[Fin
                 objective_evidence=(
                     f"{item.get('test_id')} ({item.get('test_name')}) — " f"confianza {item.get('issue_confidence')}."
                 ),
-                location=f"{item.get('filename', '-')}:{item.get('line_number', '-')}",
+                location=f"{bandit_file}:{item.get('line_number', '-')}",
                 normative_reference=f"OWASP Top 10 / CWE-{cwe_id}",
                 severity=severity,
                 source_tool="bandit",
@@ -191,9 +211,98 @@ def collect_bandit_findings(project_root: Path, target: str = "src") -> list[Fin
     return findings
 
 
+def get_pip_audit_report(project_root: Path, requirements_file: str = "requirements.txt") -> dict | None:
+    """Ejecuta `pip-audit -f json` una vez y retorna el JSON crudo (o None si falló).
+
+    Requiere red saliente (consulta la base OSV). Se reutiliza tanto para
+    evidencia (`collect_pip_audit_findings`) como para el módulo de
+    remediación (`src/remediation/proposer.py`), evitando invocar la
+    herramienta dos veces por corrida.
+    """
+    result = _run(
+        ["python", "-m", "pip_audit", "-r", requirements_file, "-f", "json"],
+        project_root,
+    )
+    try:
+        return json.loads(result.stdout or "{}")
+    except json.JSONDecodeError:
+        return None
+
+
+def collect_pip_audit_findings(project_root: Path, requirements_file: str = "requirements.txt") -> list[Finding]:
+    """Convierte el reporte de `pip-audit` en Findings (ASI04 Supply Chain).
+
+    Si la herramienta no puede ejecutarse (sin red, timeout, etc.) se
+    reporta una Observación en vez de fallar la certificación completa:
+    la ausencia de verificación no es lo mismo que una vulnerabilidad
+    confirmada, y un runner sin egress no debería denegar certificación
+    solo por eso.
+    """
+    try:
+        report = get_pip_audit_report(project_root, requirements_file)
+    except subprocess.TimeoutExpired:
+        report = None
+
+    if report is None:
+        return [
+            Finding(
+                id="pip-audit-inconclusive",
+                type=FindingType.OBSERVACION,
+                description="No se pudo ejecutar pip-audit (sin red disponible o error de herramienta).",
+                objective_evidence="El comando pip-audit no devolvió un JSON válido en este entorno.",
+                location=requirements_file,
+                normative_reference="ASI04 Supply Chain",
+                source_tool="pip-audit",
+            )
+        ]
+
+    findings: list[Finding] = []
+    for dependency in report.get("dependencies", []):
+        vulns = dependency.get("vulns", [])
+        if not vulns:
+            continue
+        name = dependency.get("name", "?")
+        version = dependency.get("version", "?")
+        vuln_ids = ", ".join(v.get("id", "?") for v in vulns)
+        fix_versions = sorted({fv for v in vulns for fv in v.get("fix_versions", [])})
+        findings.append(
+            Finding(
+                id=f"pip-audit-{name}-{version}",
+                type=FindingType.NO_CONFORMIDAD_MAYOR,
+                description=f"Vulnerabilidad(es) conocida(s) en {name}=={version}: {vuln_ids}",
+                objective_evidence=(
+                    f"pip-audit reportó {len(vulns)} CVE/advisory para {name}=={version}. "
+                    f"Versión(es) con fix disponible: {', '.join(fix_versions) or 'ninguna reportada'}."
+                ),
+                location=f"{requirements_file}:{name}",
+                normative_reference="ASI04 Supply Chain",
+                severity=Severity.ALTO,
+                source_tool="pip-audit",
+                corrective_action=(f"Actualizar a {fix_versions[0]}" if fix_versions else None),
+            )
+        )
+
+    if not findings:
+        findings.append(
+            Finding(
+                id="pip-audit-clean",
+                type=FindingType.CONFORMIDAD,
+                description="Sin vulnerabilidades conocidas en las dependencias declaradas.",
+                objective_evidence=f"`pip-audit -r {requirements_file}` no reportó CVEs.",
+                location=requirements_file,
+                normative_reference="ASI04 Supply Chain",
+                source_tool="pip-audit",
+            )
+        )
+    return findings
+
+
 def collect_all_evidence(project_root: Path) -> tuple[list[Finding], int]:
     """Orquesta la recolección completa. Retorna (findings, nº de pruebas fallidas)."""
-    pytest_findings, failed = collect_pytest_findings(project_root, ["tests/unit", "tests/e2e", "tests/design"])
+    pytest_findings, failed = collect_pytest_findings(
+        project_root, ["tests/unit", "tests/e2e", "tests/design", "tests/property"]
+    )
     ruff_findings = collect_ruff_findings(project_root, ["src", "tests"])
     bandit_findings = collect_bandit_findings(project_root, "src")
-    return [*pytest_findings, *ruff_findings, *bandit_findings], failed
+    pip_audit_findings = collect_pip_audit_findings(project_root)
+    return [*pytest_findings, *ruff_findings, *bandit_findings, *pip_audit_findings], failed
