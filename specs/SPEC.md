@@ -32,6 +32,10 @@ permisos, log de auditoría) y la hoja de estilos del PDF.
 **Herramienta 1 — `preaudit run`:**
 - Cuestionario interactivo (Ciberseguridad / Datos / OWASP / Todos),
   respuestas Sí/No/No aplica/Parcial.
+- Preguntas declarativas en `src/questions/data/*.yaml`, cargadas y
+  validadas por `src/questions/loader.py` contra el schema de
+  `Question` — agregar preguntas a un módulo existente es un cambio de
+  datos, no de código.
 - Modelo de datos Pydantic: `Question`, `Answer`, `Assessment`.
 - Informe PDF (ReportLab): portada, resumen ejecutivo con puntajes por
   módulo, detalle pregunta a pregunta, recomendaciones priorizadas,
@@ -54,6 +58,9 @@ permisos, log de auditoría) y la hoja de estilos del PDF.
 - Casos de prueba diseñados con técnicas formales (partición de
   equivalencia, valores límite, tabla de decisión) en
   `src/certification/test_cases.py`, ejecutados en `tests/design/`.
+- Cobertura de código (`pytest-cov`) medida en la misma corrida;
+  bajo `MIN_COVERAGE_PCT_THRESHOLD` (75%) se registra como no
+  conformidad menor y se muestra en el resumen ejecutivo del PDF.
 - Exit code 1 si la decisión es "Denegar" — usable como gate de CI, sin
   autoaprobación (ASI09).
 

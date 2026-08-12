@@ -61,6 +61,20 @@ python -m src.cli run --output-dir ./reports --company-name "Mi Empresa"
 El nombre de empresa es **opcional**; si se omite, el informe usa
 "No especificado" (minimización de datos, ver `.claude/skills/compliance-check.md`).
 
+### Bancos de preguntas declarativos
+
+Las preguntas de cada módulo viven en `src/questions/data/*.yaml`
+(no hardcodeadas en Python) y se cargan y validan contra el schema
+Pydantic de `Question` en `src/questions/loader.py`. Agregar preguntas a
+un módulo existente es editar el YAML — sin tocar código. Agregar un
+módulo regulatorio nuevo (p.ej. NCh-ISO 27001) requiere además una
+entrada en `QuestionModule` (`src/models/assessment.py`) más su archivo
+YAML: una frontera deliberada para mantener `QuestionModule` como Enum
+con seguridad de tipos. El loader valida al importar: id único,
+`weight` en [1,3], mínimo 10 preguntas por banco — un YAML mal formado
+falla rápido con un mensaje que identifica el archivo y la entrada, no
+un traceback genérico de Pydantic.
+
 ## Certificar la calidad/seguridad del propio código (`preaudit certify`)
 
 ```bash
@@ -69,14 +83,20 @@ python -m src.cli certify
 python -m src.cli certify --organization "Mi Proyecto" --output-dir reports/certification
 ```
 
-Ejecuta, dentro del mismo proceso, `pytest` (unit + e2e + design),
-`ruff check` y `bandit` sobre `src/`; convierte cada resultado en un
-`Finding` con evidencia objetiva, ubicación y referencia normativa; deriva
-una decisión (Otorgar / Otorgar con condiciones / Denegar — ver
-`decide_certification` en `src/certification/models.py`) y genera el PDF
-de certificación en `reports/certification/`. Si la decisión es
-**Denegar**, el comando retorna código de salida `1` (gate de CI, sin
-autoaprobación — ver ASI09).
+Ejecuta, dentro del mismo proceso, `pytest` (unit + e2e + design +
+property) con cobertura, `ruff check`, `bandit` y `pip-audit` sobre
+`src/`; convierte cada resultado en un `Finding` con evidencia objetiva,
+ubicación y referencia normativa; deriva una decisión (Otorgar / Otorgar
+con condiciones / Denegar — ver `decide_certification` en
+`src/certification/models.py`) y genera el PDF de certificación en
+`reports/certification/`. Si la decisión es **Denegar**, el comando
+retorna código de salida `1` (gate de CI, sin autoaprobación — ver
+ASI09).
+
+La cobertura de código (`coverage.py` vía `pytest-cov`) se mide en la
+misma corrida de pytest y aparece en el resumen ejecutivo del PDF; por
+debajo de `MIN_COVERAGE_PCT_THRESHOLD` (75%, `src/certification/evidence.py`)
+se registra como no conformidad menor, igual que cualquier otro hallazgo.
 
 Casos de prueba diseñados con técnicas formales (partición de
 equivalencia, valores límite, tabla de decisión) viven en
@@ -205,7 +225,7 @@ del artefacto.
 .github/workflows/       CI y escaneo de seguridad
 contexto/data/           material del curso que originó src/certification/
 src/                     código fuente de la CLI
-  questions/             bancos de preguntas por módulo (preaudit run)
+  questions/             loader + bancos de preguntas declarativos en questions/data/*.yaml
   models/                modelos Pydantic + cálculo de puntaje (preaudit run)
   report/                generación del PDF de preauditoría (ReportLab)
   certification/         plan de pruebas, evidencia, decisión e informe (preaudit certify)
