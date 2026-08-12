@@ -6,7 +6,10 @@
 > frescos (sin memoria de esta conversación, sin contexto compartido más
 > allá de lo que dejaron escrito en archivos). El objetivo era validar
 > si el patrón de coordinación por archivos, sin memoria compartida,
-> funciona en la práctica — no solo en la documentación.
+> funciona en la práctica — no solo en la documentación. Ver
+> `specs/KEY_FINDING.md` (o `FINDINGS.md` en inglés) para por qué este
+> documento, y no las tres herramientas de la CLI, es el resultado más
+> interesante del proyecto.
 
 ## Setup
 

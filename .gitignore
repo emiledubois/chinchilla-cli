@@ -9,6 +9,10 @@ logs/*.log
 # contexto para diseñar src/certification/, no código del proyecto.
 contexto/
 
+# Mapeo del hallazgo principal al programa de la asignatura — para
+# revisión con el profesor, no parte del repositorio público/personal.
+specs/COURSE_MAPPING.md
+
 # Environment / secrets
 .env
 *.env

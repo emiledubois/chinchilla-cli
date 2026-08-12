@@ -27,6 +27,25 @@ CLI con **dos herramientas** de aseguramiento, cumplimiento y certificación:
 > AI Top 10** (ver `.claude/skills/security-scan.md`). No es una auditoría
 > formal ni asesoría legal.
 
+## Hallazgo destacado: un gate de aprobación humana no sirve si el agente puede escribir su propia prueba de aprobación
+
+El resultado más interesante de este proyecto no son las tres
+herramientas de la CLI, sino un experimento real (no simulado): se corrió
+el loop de 4 agentes sobre una tarea concreta y se dejó que ocurriera lo
+que ocurriera, sin guionizar el resultado. Un agente `developer` se negó
+dos veces a implementar un cambio sin aprobación humana verificable — la
+segunda vez, rechazando específicamente un commit de "aprobación" real
+pero sin firma, por no ser distinguible de una autoaprobación de agente.
+
+El hallazgo formal: **un control de "aprobación humana" no es válido si
+el canal usado para representarla es escribible por la parte que debe
+ser controlada**, incluso si la aprobación en sí fue genuinamente
+humana. Registro completo del experimento en
+[`specs/AGENTIC_LOOP_EXPERIMENT.md`](specs/AGENTIC_LOOP_EXPERIMENT.md);
+por qué este es el aporte central del proyecto en
+[`specs/KEY_FINDING.md`](specs/KEY_FINDING.md) (español) /
+[`FINDINGS.md`](FINDINGS.md) (English).
+
 ## Requisitos
 
 - Python 3.11+, o Docker + Docker Compose.
@@ -253,6 +272,9 @@ tests/                   unit + e2e + design + property (Hypothesis)
 specs/SPEC.md            contexto único compartido entre agentes
 specs/TEST_PLAN.md       plan de pruebas narrativo (preaudit certify)
 specs/THREAT_MODEL.md    modelo de amenazas STRIDE
+specs/AGENTIC_LOOP_EXPERIMENT.md  corrida real del loop de 4 agentes
+specs/KEY_FINDING.md     por qué ese experimento es el resultado central
+FINDINGS.md              versión en inglés de KEY_FINDING.md
 setup.cfg                configuración de mutmut
 scripts/audit-log.sh     script de trazabilidad
 ```
