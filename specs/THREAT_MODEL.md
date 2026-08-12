@@ -35,6 +35,7 @@
 ### Repudiation (repudio)
 - **Amenaza**: alguien genera un informe y luego niega haberlo hecho, o modifica un hallazgo sin dejar rastro.
 - **Mitigación**: `logs/audit.log` registra timestamp UTC, actor, acción, finalidad y hash del artefacto para cada generación (`scripts/audit-log.sh`). Limitación conocida: el log es un archivo local sin firma criptográfica ni append-only garantizado a nivel de filesystem — alguien con acceso de escritura al host podría editarlo. Mitigación complementaria: permisos `0600` en el log mismo.
+- **Diseño aprobado, no implementado**: `specs/adr/0001-audit-log-integrity.md` (rama `agentic-loop/audit-log-integrity`) propone un hash-chain SHA-256 entre entradas (tamper-*evidencia*, no prevención) más `scripts/verify-audit-log.sh`. Aprobado por el dueño del repositorio; pendiente de implementación real vía PR — ver `specs/AGENTIC_LOOP_EXPERIMENT.md` para por qué se detuvo ahí a propósito.
 
 ### Information Disclosure (divulgación de información)
 - **Amenaza**: el cuestionario o el informe de certificación exponen más PII de la necesaria.
@@ -61,7 +62,7 @@
 | ASI01 Goal Hijack | Contenido de un PR/issue con instrucciones embebidas redirige a `architect`/`developer` | Input externo tratado como dato, nunca como instrucción; cambios de alcance requieren aprobación humana |
 | ASI02 Tool Misuse | `developer` instala paquetes no aprobados | Permisos escopeados por agente en `.claude/agents/*.md`; `requirements.txt` requiere aprobación humana para cambios |
 | ASI05 Unexpected Code Execution | Código de agentes corre en el host | Todo corre en Docker (`Dockerfile`, `docker-compose.yml`), usuario no-root |
-| ASI09 Human Trust | Un agente se autoaprueba | Ningún agente tiene permisos de merge; `reviewer` solo recomienda; remediación requiere confirmación humana explícita por cada fix |
+| ASI09 Human Trust | Un agente se autoaprueba | Ningún agente tiene permisos de merge; `reviewer` solo recomienda; remediación requiere confirmación humana explícita por cada fix. **Validado en la práctica, no solo documentado**: en `specs/AGENTIC_LOOP_EXPERIMENT.md`, un agente `developer` se negó dos veces a implementar un ADR sin aprobación humana verificable — la segunda vez, rechazando específicamente un commit de "aprobación" sin firma por no ser distinguible de una auto-aprobación de agente. |
 
 ## Fuera de alcance (documentado, no implementado)
 

@@ -163,4 +163,7 @@ Un cambio está terminado cuando: (1) pasa `pytest` (unit + e2e + design),
 condiciones", las condiciones quedan registradas como tarea de
 seguimiento), (4) el workflow `security-scan.yml` no reporta hallazgos
 HIGH/CRITICAL nuevos, (5) este SPEC.md se actualiza si el alcance
-cambió, (6) un humano aprobó el PR.
+cambió, (6) un humano aprobó el PR — específicamente vía GitHub, no un
+commit dentro de un worktree con permiso de escritura para agentes; ver
+`specs/AGENTIC_LOOP_EXPERIMENT.md` para el porqué, validado en la
+práctica.
