@@ -20,8 +20,12 @@ agéntico (no confundir con el cuestionario de negocio `owasp_web.py`).
 - `bandit -r src` — vulnerabilidades Python (SAST).
 - `semgrep --config auto` — patrones inseguros adicionales.
 - `detect-secrets scan` — credenciales embebidas.
-- (Opcional, si Node disponible) `promptfoo eval` sobre prompts de agentes
-  para detectar prompt injection / goal hijack (ASI01).
+- `promptfoo eval` (config en `promptfooconfig.yaml`) — 8 casos de
+  inyección/goal-hijack contra los 4 prompts de agente, 2 por agente,
+  cada uno dirigido a una restricción documentada específica (no
+  autoaprobación, sin acceso a push/merge, no ocultar fallos, etc.).
+  Requiere `ANTHROPIC_API_KEY` como secret de CI; sin él, el job avisa y
+  se omite en vez de fallar el pipeline.
 
 ## Uso
 `reviewer` ejecuta este checklist fila por fila contra el diff y reporta

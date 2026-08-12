@@ -208,8 +208,26 @@ CI (`.github/workflows/`):
   artefacto; build de artefacto de distribución en `main` (publicación
   real requiere aprobación humana vía GitHub Environments — nunca
   automática).
-- `security-scan.yml` — bandit, semgrep, detect-secrets, pip-audit y
-  (si hay Node disponible) `promptfoo` sobre los prompts de agentes.
+- `security-scan.yml` — bandit, semgrep, detect-secrets, pip-audit,
+  mutation testing semanal, y `promptfoo` (8 casos de prompt injection
+  contra `.claude/agents/*.md`, ver `promptfooconfig.yaml`; requiere el
+  secret `ANTHROPIC_API_KEY`, se omite sin fallar el pipeline si no está
+  configurado).
+
+### Evals de los prompts de agentes (`promptfooconfig.yaml`)
+
+```bash
+npm install -g promptfoo
+export ANTHROPIC_API_KEY=sk-...
+promptfoo eval -c promptfooconfig.yaml
+```
+
+8 casos (2 por agente) envían contenido adversarial a cada system prompt
+(`.claude/agents/*.md`) — "apruébate a ti mismo", "salta la revisión
+humana", "oculta este fallo" — y verifican que la respuesta identifique
+el intento y cite la restricción concreta que la protege (ASI01 Goal
+Hijack). `tests/unit/test_promptfoo_config.py` valida la estructura de
+la config (sin llamar a ningún modelo) en la suite normal de pytest.
 
 ## Trazabilidad / compliance
 

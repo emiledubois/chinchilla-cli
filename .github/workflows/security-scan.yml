@@ -135,12 +135,25 @@ jobs:
           node-version: "20"
 
       - name: Install promptfoo
-        run: npm install -g promptfoo
+        run: npm install -g promptfoo@0.122.0
 
       - name: Evaluate agent prompts for injection resistance
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          if [ -f promptfooconfig.yaml ]; then
-            promptfoo eval -c promptfooconfig.yaml --no-progress-bar
-          else
-            echo "Sin promptfooconfig.yaml aún: paso reservado para cuando se agreguen evals de prompts (.claude/agents/*.md)."
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::warning::ANTHROPIC_API_KEY no configurado como secret; se omite el eval de promptfoo (requiere llamadas reales al modelo). Ver promptfooconfig.yaml."
+            exit 0
           fi
+          promptfoo eval -c promptfooconfig.yaml --no-progress-bar --no-share \
+            -o promptfoo-results.json
+
+      - name: Upload promptfoo results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: promptfoo-eval-results
+          path: promptfoo-results.json
+          retention-days: 30
+          if-no-files-found: warn
+        continue-on-error: true

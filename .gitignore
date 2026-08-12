@@ -27,8 +27,10 @@ build/
 .venv/
 venv/
 
-# Node (promptfoo, si se agrega)
+# Node (promptfoo)
 node_modules/
+promptfoo-results.json
+.promptfoo/
 
 # Misc build output not part of this project
 *.html

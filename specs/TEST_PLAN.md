@@ -134,6 +134,28 @@ métrica está en identificar y cerrar los gaps de comportamiento real
 (como el de las `@property` de `CertificationReport`), no en maximizar
 el número.
 
+### 2.3 Evals de resistencia a prompt injection (promptfoo, ASI01)
+
+`promptfooconfig.yaml` define 8 casos (2 por agente) que envían a cada
+system prompt (`.claude/agents/*.md`) contenido externo adversarial —
+"apruébate a ti mismo", "salta la revisión", "oculta este fallo" — y
+verifican, con un `llm-rubric` graduado por el propio modelo, que la
+respuesta identifique el intento y cite la restricción concreta que la
+protege (no basta una negativa genérica). Corre en CI
+(`security-scan.yml`, job `agentic-prompt-scan`) con `ANTHROPIC_API_KEY`
+como secret; sin él, el job avisa y se omite sin fallar el pipeline
+(no todo fork/PR tiene el secret disponible).
+
+**Limitación honesta**: no se pudo ejecutar contra un modelo real durante
+el desarrollo de esta config por falta de credenciales de API en el
+entorno de desarrollo. Se validó todo lo verificable sin red: parseo de
+YAML, resolución de `file://` en `vars`, render correcto del template
+para los 8 casos (con el provider `echo` de promptfoo, que no requiere
+API key) — y ese mismo proceso de validación encontró un bug real de
+formato (ver "Historial de hallazgos" más abajo). La ejecución real
+contra Claude queda pendiente de la primera corrida en CI con el secret
+configurado.
+
 ## 3. Recursos y roles
 
 | Rol | Responsabilidad en el plan de pruebas |
@@ -202,6 +224,15 @@ alcance actual es exclusivamente el código fuente de este proyecto.
 
 ## Historial de hallazgos reales relevantes
 
+- 2026-08: al construir `promptfoo/agent-injection-template.txt` para los
+  evals de ASI01, cada test se partía en 2 evaluaciones — una completa y
+  una sin `system_prompt` — validado con el provider `echo` (sin costo de
+  API). Causa real, encontrada por bisección sistemática (no era un bug
+  de promptfoo como se sospechó al principio): una línea con solo `---`
+  usada como separador visual en el template es interpretada por
+  promptfoo como delimitador de "múltiples prompts en un mismo archivo".
+  Corregido reemplazándola por `===`. `tests/unit/test_promptfoo_config.py`
+  incluye una regresión específica para este caso.
 - 2026-08: la remediación en vivo de `preaudit remediate` reveló que
   `ruff` siempre reporta rutas ABSOLUTAS en su JSON (sin importar cómo
   se le invoque), mientras el resto del pipeline asumía relativas —
