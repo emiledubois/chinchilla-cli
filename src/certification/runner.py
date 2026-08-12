@@ -11,7 +11,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from src.certification.evidence import collect_all_evidence
-from src.certification.models import CertificationDecision, CertificationReport, decide_certification
+from src.certification.models import (
+    CertificationDecision,
+    CertificationReport,
+    PipelineMetrics,
+    decide_certification,
+)
 from src.certification.plan import PREAUDIT_CLI_TEST_PLAN
 from src.certification.test_cases import DESIGNED_TEST_CASES
 from src.utils.security import sanitize_input
@@ -27,8 +32,8 @@ def run_certification(
     project_root: Path,
     organization: str = "preaudit-cli (auto-certificación)",
 ) -> CertificationReport:
-    """Ejecuta pytest/ruff/bandit sobre `project_root` y arma el informe."""
-    findings, failed = collect_all_evidence(project_root)
+    """Ejecuta pytest/ruff/bandit/pip-audit sobre `project_root` y arma el informe."""
+    findings, failed, coverage_pct = collect_all_evidence(project_root)
     decision, justification = decide_certification(findings, failed)
 
     now = datetime.now(UTC)
@@ -54,6 +59,7 @@ def run_certification(
         test_plan=PREAUDIT_CLI_TEST_PLAN,
         test_cases=DESIGNED_TEST_CASES,
         findings=findings,
+        pipeline_metrics=PipelineMetrics(coverage_pct=coverage_pct),
         decision=decision,
         decision_justification=justification,
         conditions=conditions,

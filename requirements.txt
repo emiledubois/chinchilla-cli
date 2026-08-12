@@ -16,9 +16,11 @@ click==8.3.3
 rich==13.7.1
 pydantic==2.7.1
 reportlab==4.2.0
+pyyaml==6.0.2
 
 # Testing
 pytest==9.0.3
+pytest-cov==7.1.0
 
 # Calidad y seguridad (usadas también en pre-commit / CI)
 ruff==0.4.4

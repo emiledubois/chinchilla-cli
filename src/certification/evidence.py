@@ -22,6 +22,7 @@ from tempfile import TemporaryDirectory
 from src.certification.models import Finding, FindingType, Severity
 
 EVIDENCE_SUBPROCESS_TIMEOUT_SECONDS = 120
+MIN_COVERAGE_PCT_THRESHOLD = 75.0
 
 _BANDIT_SEVERITY_MAP: dict[str, Severity] = {
     "LOW": Severity.BAJO,
@@ -60,16 +61,37 @@ def _run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
-def collect_pytest_findings(project_root: Path, test_paths: list[str]) -> tuple[list[Finding], int]:
-    """Ejecuta pytest (JUnit XML) y retorna (findings, número de pruebas fallidas)."""
+def collect_pytest_findings(project_root: Path, test_paths: list[str]) -> tuple[list[Finding], int, float | None]:
+    """Ejecuta pytest con cobertura (JUnit XML + coverage JSON).
+
+    Retorna (findings, número de pruebas fallidas, % de cobertura de
+    `src/` o None si no se pudo medir). Ambos reportes se generan en la
+    MISMA invocación de pytest para no pagar el costo de arrancar el
+    intérprete y recolectar la suite dos veces.
+    """
     with TemporaryDirectory() as tmp:
         junit_path = Path(tmp) / "junit.xml"
-        _run(["python", "-m", "pytest", *test_paths, f"--junitxml={junit_path}", "-q"], project_root)
+        coverage_path = Path(tmp) / "coverage.json"
+        _run(
+            [
+                "python",
+                "-m",
+                "pytest",
+                *test_paths,
+                f"--junitxml={junit_path}",
+                "--cov=src",
+                f"--cov-report=json:{coverage_path}",
+                "-q",
+            ],
+            project_root,
+        )
+
+        coverage_pct = _read_coverage_percent(coverage_path)
 
         findings: list[Finding] = []
         failed = 0
         if not junit_path.exists():
-            return findings, failed
+            return findings, failed, coverage_pct
 
         # El XML lo genera nuestro propio proceso pytest (no es input externo
         # no confiable), por lo que xml.etree es aceptable aquí sin defusedxml.
@@ -111,7 +133,49 @@ def collect_pytest_findings(project_root: Path, test_paths: list[str]) -> tuple[
                     source_tool="pytest",
                 )
             )
-        return findings, failed
+
+        if coverage_pct is not None and coverage_pct < MIN_COVERAGE_PCT_THRESHOLD:
+            findings.append(
+                Finding(
+                    id="coverage-below-threshold",
+                    type=FindingType.NO_CONFORMIDAD_MENOR,
+                    description=(
+                        f"Cobertura de código ({coverage_pct:.1f}%) por debajo del "
+                        f"umbral ({MIN_COVERAGE_PCT_THRESHOLD:.0f}%)."
+                    ),
+                    objective_evidence=f"coverage.py reportó {coverage_pct:.1f}% de líneas cubiertas en src/.",
+                    location="src/",
+                    normative_reference="specs/TEST_PLAN.md — criterios de aceptación",
+                    severity=Severity.BAJO,
+                    source_tool="coverage",
+                )
+            )
+        elif coverage_pct is not None:
+            findings.append(
+                Finding(
+                    id="coverage-ok",
+                    type=FindingType.CONFORMIDAD,
+                    description=(
+                        f"Cobertura de código ({coverage_pct:.1f}%) sobre el " f"umbral ({MIN_COVERAGE_PCT_THRESHOLD:.0f}%)."
+                    ),
+                    objective_evidence=f"coverage.py reportó {coverage_pct:.1f}% de líneas cubiertas en src/.",
+                    location="src/",
+                    normative_reference="specs/TEST_PLAN.md — criterios de aceptación",
+                    source_tool="coverage",
+                )
+            )
+
+        return findings, failed, coverage_pct
+
+
+def _read_coverage_percent(coverage_path: Path) -> float | None:
+    if not coverage_path.exists():
+        return None
+    try:
+        data = json.loads(coverage_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    return data.get("totals", {}).get("percent_covered")
 
 
 def collect_ruff_findings(project_root: Path, paths: list[str]) -> list[Finding]:
@@ -297,12 +361,16 @@ def collect_pip_audit_findings(project_root: Path, requirements_file: str = "req
     return findings
 
 
-def collect_all_evidence(project_root: Path) -> tuple[list[Finding], int]:
-    """Orquesta la recolección completa. Retorna (findings, nº de pruebas fallidas)."""
-    pytest_findings, failed = collect_pytest_findings(
+def collect_all_evidence(project_root: Path) -> tuple[list[Finding], int, float | None]:
+    """Orquesta la recolección completa.
+
+    Retorna (findings, nº de pruebas fallidas, % de cobertura de src/).
+    """
+    pytest_findings, failed, coverage_pct = collect_pytest_findings(
         project_root, ["tests/unit", "tests/e2e", "tests/design", "tests/property"]
     )
     ruff_findings = collect_ruff_findings(project_root, ["src", "tests"])
     bandit_findings = collect_bandit_findings(project_root, "src")
     pip_audit_findings = collect_pip_audit_findings(project_root)
-    return [*pytest_findings, *ruff_findings, *bandit_findings, *pip_audit_findings], failed
+    all_findings = [*pytest_findings, *ruff_findings, *bandit_findings, *pip_audit_findings]
+    return all_findings, failed, coverage_pct

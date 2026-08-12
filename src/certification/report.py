@@ -97,7 +97,7 @@ def _build_cover(report: CertificationReport, styles) -> list:
 
 def _build_executive_summary(report: CertificationReport, styles) -> list:
     decision_hex = DECISION_COLOR_HEX[report.decision]
-    return [
+    flowables = [
         Paragraph("Resumen ejecutivo", styles["SectionHeading"]),
         Paragraph(
             f"Conformidades: <b>{len(report.conformities)}</b> &nbsp;|&nbsp; "
@@ -111,8 +111,16 @@ def _build_executive_summary(report: CertificationReport, styles) -> list:
             f"{report.decision_justification}",
             styles["BodyTextCustom"],
         ),
-        Spacer(1, 0.4 * cm),
     ]
+    if report.pipeline_metrics and report.pipeline_metrics.coverage_pct is not None:
+        flowables.append(
+            Paragraph(
+                f"Cobertura de código (src/): <b>{report.pipeline_metrics.coverage_pct:.1f}%</b>",
+                styles["BodyTextCustom"],
+            )
+        )
+    flowables.append(Spacer(1, 0.4 * cm))
+    return flowables
 
 
 def _build_methodology(report: CertificationReport, styles) -> list:
