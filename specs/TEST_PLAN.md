@@ -101,23 +101,38 @@ en CI (`security-scan.yml`, job `mutation-testing`), no en cada push.
 |---|---:|---:|---:|---:|
 | `src/models/assessment.py` | 112 | 73 | 39 | 65.2% |
 | `src/utils/security.py` | 50 | 21 | 29 | 42.0% |
-| `src/certification/models.py` | 118 | 19 | 99 | 16.1% |
-| **Total** | **280** | **113** | **167** | **40.4%** |
+| `src/certification/models.py` | 118 | 58 | 60 | 49.2% |
+| **Total** | **280** | **152** | **128** | **54.3%** |
 
-Lectura honesta, no maquillada: `certification/models.py` es el punto más
-débil con diferencia. La mayoría de sus mutantes sobrevivientes son
-mutaciones de valores de enums (`Severity`, `FindingType`) y de los
-`@property` de `CertificationReport` (`major_nonconformities`,
-`conformities`, etc.) — ninguno de los tests actuales asigna el
-`CertificationReport` completo con una mezcla de tipos de hallazgo y
-verifica esas properties directamente; `tests/property/test_certification_decision_properties.py`
-cubre `decide_certification()` a fondo, pero no las properties del
-modelo `CertificationReport` en sí. **Backlog identificado, no
-resuelto en este ciclo**: agregar pruebas de propiedad sobre
-`CertificationReport.major_nonconformities`/`conformities`/etc.
-subiría el score real de este archivo. Se documenta en vez de
-ocultarse porque el propósito de esta métrica es guiar dónde invertir
-esfuerzo de testing a continuación, no maximizar un número.
+`certification/models.py` partió en 16.1% (19/118) en el primer ciclo.
+Se agregaron `tests/property/test_certification_report_properties.py`
+(partición exacta de `CertificationReport.conformities`/
+`major_nonconformities`/`minor_nonconformities`/`observations` sobre
+combinaciones aleatorias de hallazgos) y
+`tests/unit/test_certification_models.py` (valores por defecto de
+campos Pydantic omitidos, y conteos exactos embebidos en el mensaje de
+`decide_certification`), subiendo el archivo a 49.2% — más que
+triplicó su score sin tocar el código de producción, solo agregando
+las pruebas que faltaban.
+
+**Sobrevivientes restantes, categorizados (no perseguidos más allá de
+esto en este ciclo):**
+- Mutaciones de **valores string de enums** (`Severity.CRITICO =
+  "Crítico"` → otro string): solo se detectarían fijando el texto
+  exacto de display en un test, lo que acopla los tests a la redacción
+  del PDF en vez de a comportamiento. Deliberadamente no perseguido.
+- Mutaciones de **prosa libre** en mensajes de justificación (envolver
+  fragmentos de texto en marcadores): mismo argumento — ya se verifica
+  que el *número* embebido en el mensaje sea correcto
+  (`test_decide_certification_justification_embeds_accurate_*_count`),
+  que es la parte con valor informativo real.
+
+Un mutation score de 100% no es la meta de este proyecto: perseguir los
+sobrevivientes restantes significaría escribir tests que verifican
+strings de presentación palabra por palabra, no lógica. El valor de la
+métrica está en identificar y cerrar los gaps de comportamiento real
+(como el de las `@property` de `CertificationReport`), no en maximizar
+el número.
 
 ## 3. Recursos y roles
 
@@ -187,6 +202,18 @@ alcance actual es exclusivamente el código fuente de este proyecto.
 
 ## Historial de hallazgos reales relevantes
 
+- 2026-08: la remediación en vivo de `preaudit remediate` reveló que
+  `ruff` siempre reporta rutas ABSOLUTAS en su JSON (sin importar cómo
+  se le invoque), mientras el resto del pipeline asumía relativas —
+  `is_target_allowed()` rechazaba en silencio cada propuesta de fix
+  real, aunque los tests unitarios (con `Finding` fabricados a mano)
+  pasaban. Corregido normalizando `Finding.location` en
+  `src/certification/evidence.py`. Ningún test automatizado lo detectó;
+  solo correr el flujo completo contra evidencia real lo hizo.
+- 2026-08: cobertura de código medida por primera vez (`pytest-cov`):
+  69.1% en `src/`, por debajo del umbral de 75% definido en
+  `MIN_COVERAGE_PCT_THRESHOLD`. Registrado como no conformidad menor
+  real en el propio informe de certificación, no ocultado.
 - 2026-08: `pip-audit` detectó CVEs en `click==8.1.7`
   (PYSEC-2026-2132) y `pytest==8.2.0` (PYSEC-2026-1845) durante el
   primer ciclo de certificación de este proyecto. Corregido fijando
