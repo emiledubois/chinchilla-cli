@@ -1,0 +1,76 @@
+# Ley 21.719 — Protección de Datos Personales (Chile), vigencia 1-dic-2026.
+# Pesos (1-3): 3 = obligación estructural (consentimiento, ARCO+,
+# notificación de brechas), 2 = obligación operativa, 1 = buena práctica
+# complementaria. Ver specs/SPEC.md §3 y .claude/skills/compliance-check.md.
+
+- id: dp-01
+  category: Base de licitud
+  weight: 3
+  text: >-
+    ¿Se obtiene consentimiento EXPLÍCITO y REVOCABLE para cada
+    tratamiento de datos?
+
+- id: dp-02
+  category: Derechos de titulares
+  weight: 3
+  text: >-
+    ¿El titular puede ejercer sus derechos ARCO (Acceso, Rectificación,
+    Cancelación, Oposición)?
+
+- id: dp-03
+  category: Registro
+  weight: 2
+  text: ¿Existe un Registro Nacional de Tratamiento de Datos actualizado?
+
+- id: dp-04
+  category: Gobernanza
+  weight: 2
+  text: ¿Se designó un Delegado de Protección de Datos (DPO)?
+
+- id: dp-05
+  category: Evaluación de impacto
+  weight: 3
+  text: >-
+    ¿Se realiza Evaluación de Impacto en Protección de Datos (EIPD)
+    para tratamientos de alto riesgo?
+
+- id: dp-06
+  category: Minimización
+  weight: 2
+  text: ¿Se anonimizan o seudonimizan los datos en entornos de desarrollo y QA?
+
+- id: dp-07
+  category: Notificación de brechas
+  weight: 3
+  text: >-
+    ¿Se notifica a la Agencia de Protección de Datos en caso de
+    violación de seguridad en <72 horas?
+
+- id: dp-08
+  category: Notificación de brechas
+  weight: 2
+  text: ¿Se notifica a los titulares afectados de manera inmediata?
+
+- id: dp-09
+  category: Encargados de tratamiento
+  weight: 2
+  text: ¿Existen contratos específicos con encargados de tratamiento (proveedores)?
+
+- id: dp-10
+  category: Transferencias internacionales
+  weight: 2
+  text: >-
+    ¿Se garantiza la transferencia internacional de datos solo a
+    países con nivel adecuado?
+
+- id: dp-11
+  category: Privacidad desde el diseño
+  weight: 2
+  text: >-
+    ¿Se aplica el principio de "privacidad desde el diseño" en nuevos
+    productos?
+
+- id: dp-12
+  category: Trazabilidad
+  weight: 1
+  text: ¿Se mantiene un registro de todas las operaciones de tratamiento (logs de auditoría)?

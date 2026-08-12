@@ -1,0 +1,53 @@
+# OWASP Top 10 (Web, 2021) aplicado al proyecto evaluado.
+# weight=3 en todas: en este módulo cada categoría representa un riesgo
+# estructural equivalente (A01-A10).
+
+- id: ow-a01
+  category: A01 - Control de Acceso Roto
+  weight: 3
+  text: ¿Se validan los permisos en cada solicitud?
+
+- id: ow-a02
+  category: A02 - Fallos Criptográficos
+  weight: 3
+  text: ¿Se usan cifrados fuertes (TLS 1.3, AES-256) para datos sensibles?
+
+- id: ow-a03
+  category: A03 - Inyección
+  weight: 3
+  text: ¿Se parametrizan todas las consultas a BD y comandos del sistema?
+
+- id: ow-a04
+  category: A04 - Diseño Inseguro
+  weight: 3
+  text: ¿Se realizan amenazas de modelado en la fase de diseño?
+
+- id: ow-a05
+  category: A05 - Configuración Insegura
+  weight: 3
+  text: ¿Se eliminan configuraciones por defecto y puertos innecesarios?
+
+- id: ow-a06
+  category: A06 - Componentes Vulnerables
+  weight: 3
+  text: ¿Se mantiene un inventario de dependencias y se actualizan?
+
+- id: ow-a07
+  category: A07 - Fallos de Autenticación
+  weight: 3
+  text: ¿Se implementa MFA y políticas robustas de contraseñas?
+
+- id: ow-a08
+  category: A08 - Fallos de Integridad
+  weight: 3
+  text: ¿Se usan firmas digitales para verificar integridad del código?
+
+- id: ow-a09
+  category: A09 - Fallos de Monitoreo
+  weight: 3
+  text: ¿Se centralizan logs y se generan alertas ante anomalías?
+
+- id: ow-a10
+  category: A10 - Server-Side Request Forgery
+  weight: 3
+  text: ¿Se valida y restringe las solicitudes a recursos externos?

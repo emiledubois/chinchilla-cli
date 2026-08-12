@@ -25,8 +25,13 @@ packages = [
     "src.models",
     "src.report",
     "src.report.templates",
+    "src.certification",
+    "src.remediation",
     "src.utils",
 ]
+
+[tool.setuptools.package-data]
+"src.questions" = ["data/*.yaml"]
 
 [tool.ruff]
 line-length = 125
